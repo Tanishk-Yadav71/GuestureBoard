@@ -1,30 +1,66 @@
 import cv2
 import mediapipe as mp
+import numpy as np
 
-mphands=mp.solutions.hands
-hands=mphands.Hands()
-drawing=mp.solutions.drawing_utils
+cap = cv2.VideoCapture(0)
 
-cap=cv2.VideoCapture(0)
+# Mediapipe setup
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(max_num_hands=1)
+mp_draw = mp.solutions.drawing_utils
+
+# Create a blank canvas
+canvas = np.zeros((480, 640, 3), dtype=np.uint8)
+
+# To store previous fingertip position
+prev_x, prev_y = 0, 0
+
+def fingers_up(handLms):
+    fingers_tips= [4,8,12,16,20]
+    fingers=[]
+    for tips in finger_tips:
+        if handLms.landmarks[tips].y
+
 while True:
-    success, img=cap.read()
-    img=cv2.resize(img,(1000,700))
-    img=cv2.flip(img,1)
-    imgrgb=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    results=hands.process(imgrgb)
-    if results.multi_hand_landmarks:
-        for handLms in results.multi_hand_landmarks:
-            drawing.draw_landmarks(imgrgb,handLms,mphands.HAND_CONNECTIONS)
+    success, img = cap.read()
+    img = cv2.flip(img, 1)  # Flip for mirror effect
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    result = hands.process(img_rgb)
 
-            index_finger_tip = handLms.landmark[8]
-            h, w, c = imgrgb.shape
-            cx, cy = int(index_finger_tip.x * w), int(index_finger_tip.y * h)
+    curr_x, curr_y = 0, 0
 
-            cv2.circle(imgrgb, (cx, cy), 15, (0, 0, 153),3)
-            cv2.putText(imgrgb, f'{cx}, {cy}', (cx+20, cy-20), cv2.FONT_HERSHEY_TRIPLEX, 0.7, (255, 255, 255), 2)
+    if result.multi_hand_landmarks:
+        for handLms in result.multi_hand_landmarks:
+            mp_draw.draw_landmarks(img, handLms, mp_hands.HAND_CONNECTIONS)
 
-    cv2.imshow("GestureBoard",cv2.cvtColor(imgrgb, cv2.COLOR_RGB2BGR))
+            # Index fingertip
+            h, w, c = img.shape
+            lm = handLms.landmark[8]
+            tm = handLms.landmark[4]
+            index_x, index_y = int(lm.x * w), int(lm.y * h)
+            thumb_x, thumb_y = int(tm.x * w), int(tm.y * h)
+            import math
+            distance= math.hypot(index_x-thumb_x, index_y-thumb_y)
+
+            # Only draw if previous point is not (0,0)
+            if prev_x != 0 and prev_y != 0 and distance<30:
+                cv2.circle(img, (index_x, index_y), 10, (255,0,255), cv2.FILLED)
+                cv2.line(canvas, (prev_x, prev_y), (index_x, index_y), (255, 0, 255), 5)
+
+            # Update previous point
+            prev_x, prev_y = index_x, index_y
+
+    else:
+        # If hand not detected, reset previous point
+        prev_x, prev_y = 0, 0
+
+    # Combine camera frame and drawing canvas
+    img = cv2.addWeighted(img, 0.5, canvas, 0.5, 0)
+
+    cv2.imshow("GestureBoard - Drawing Mode", img)
+
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
+
 cap.release()
 cv2.destroyAllWindows()
