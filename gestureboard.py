@@ -1,3 +1,4 @@
+import math
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -16,10 +17,22 @@ canvas = np.zeros((480, 640, 3), dtype=np.uint8)
 prev_x, prev_y = 0, 0
 
 def fingers_up(handLms):
-    fingers_tips= [4,8,12,16,20]
-    fingers=[]
-    for tips in finger_tips:
-        if handLms.landmarks[tips].y
+    fingers = []
+    # Thumb: check x not y
+    if handLms.landmark[4].x < handLms.landmark[3].x:
+        fingers.append(1)
+    else:
+        fingers.append(0)
+    
+    # Fingers: tip.y < pip.y means finger is up
+    tips_ids = [8, 12, 16, 20]
+    for tip_id in tips_ids:
+        if handLms.landmark[tip_id].y < handLms.landmark[tip_id - 2].y:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+    return fingers
+
 
 while True:
     success, img = cap.read()
@@ -34,18 +47,22 @@ while True:
             mp_draw.draw_landmarks(img, handLms, mp_hands.HAND_CONNECTIONS)
 
             # Index fingertip
+            fingers=fingers_up(handLms)
             h, w, c = img.shape
             lm = handLms.landmark[8]
             tm = handLms.landmark[4]
             index_x, index_y = int(lm.x * w), int(lm.y * h)
             thumb_x, thumb_y = int(tm.x * w), int(tm.y * h)
-            import math
             distance= math.hypot(index_x-thumb_x, index_y-thumb_y)
 
             # Only draw if previous point is not (0,0)
-            if prev_x != 0 and prev_y != 0 and distance<30:
-                cv2.circle(img, (index_x, index_y), 10, (255,0,255), cv2.FILLED)
-                cv2.line(canvas, (prev_x, prev_y), (index_x, index_y), (255, 0, 255), 5)
+            if prev_x != 0 and prev_y != 0:
+                if fingers[0]==0 and fingers[1]==1 and fingers[2]==1:
+                    cv2.circle(img, (index_x, index_y), 10, (255,0,0), cv2.FILLED)
+                    cv2.line(canvas, (prev_x, prev_y), (index_x, index_y), (0, 0, 0), 10)
+                elif distance<30:
+                    cv2.circle(img, (index_x, index_y), 10, (255,0,255), cv2.FILLED)
+                    cv2.line(canvas, (prev_x, prev_y), (index_x, index_y), (255, 0, 255), 5)
 
             # Update previous point
             prev_x, prev_y = index_x, index_y
